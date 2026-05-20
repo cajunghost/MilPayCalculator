@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-store">
+    <title>Military Compensation Planner</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">MP</div>
+          <div>
+            <h1>MilComp Planner</h1>
+            <p>Military pay, housing, budget, debt, and TSP planning</p>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="Primary">
+          <button class="nav-button active" data-view="plan" aria-label="Plan">
+            <span class="icon">P</span><span>Plan</span>
+          </button>
+          <button class="nav-button" data-view="budget" aria-label="Expenses">
+            <span class="icon">E</span><span>Expenses</span>
+          </button>
+          <button class="nav-button" data-view="debt" aria-label="Debt">
+            <span class="icon">$</span><span>Debt</span>
+          </button>
+          <button class="nav-button" data-view="tsp" aria-label="TSP">
+            <span class="icon">T</span><span>TSP</span>
+          </button>
+          <button class="nav-button" data-view="scenarios" aria-label="Scenarios">
+            <span class="icon">S</span><span>Scenarios</span>
+          </button>
+        </nav>
+
+        <section class="source-card">
+          <span class="label">Blank planner</span>
+          <strong>Enter grade, YOS, and duty ZIP</strong>
+          <p>BAH resolves from ZIP to MHA using public ZIP-to-locality data.</p>
+        </section>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow">2026 compensation snapshot</span>
+            <h2 id="view-title">Plan</h2>
+          </div>
+        </header>
+
+        <section class="view active" id="plan-view">
+          <div class="segmented plan-mode-switch" role="group" aria-label="Plan display mode">
+            <button class="mode-button active" data-mode="command">Command</button>
+            <button class="mode-button" data-mode="ledger">Ledger</button>
+            <button class="mode-button" data-mode="brief">Brief</button>
+          </div>
+          <div class="profile-grid">
+            <section class="panel profile-panel">
+              <div class="panel-heading">
+                <div>
+                  <span class="heading-kicker">Primary inputs</span>
+                  <h3>Service & Pay Profile</h3>
+                </div>
+                <span>Fill-in-the-blank</span>
+              </div>
+              <div class="form-grid">
+                <label>Grade
+                  <select id="grade"></select>
+                </label>
+                <label>Years of service
+                  <input id="years" type="number" min="0" max="50" step="1">
+                </label>
+                <label>Duty ZIP
+                  <input id="zip" type="text" inputmode="numeric" maxlength="5" placeholder="Enter 5-digit ZIP">
+                </label>
+                <label>Resolved BAH locality
+                  <div class="resolved-field" id="resolved-locality">Enter duty ZIP</div>
+                </label>
+                <label>Dependents
+                  <select id="dependents">
+                    <option value="">Select dependency status</option>
+                    <option value="with">With Dependents</option>
+                    <option value="without">Without Dependents</option>
+                  </select>
+                </label>
+                <label>Special pays
+                  <input id="specialPays" type="number" min="0" step="25">
+                </label>
+                <label>Monthly deductions
+                  <input id="deductions" type="number" min="0" step="25">
+                </label>
+                <label>TSP rate (%)
+                  <input id="tspRate" type="number" min="0" max="92" step="1">
+                </label>
+                <label>Protected BAH
+                  <input id="protectedBah" type="number" min="0" step="25">
+                </label>
+                <label>Withholding preset
+                  <select id="withholdingPreset">
+                    <option value="0">None / manual</option>
+                    <option value="0.10">Low average (10%)</option>
+                    <option value="0.15">Standard average (15%)</option>
+                    <option value="0.20">High average (20%)</option>
+                  </select>
+                </label>
+                <label>Federal withholding (%)
+                  <input id="federalRate" type="number" min="0" max="60" step="1">
+                </label>
+                <label>State/local withholding (%)
+                  <input id="stateRate" type="number" min="0" max="30" step="1">
+                </label>
+                <label>FICA/payroll estimate (%)
+                  <input id="ficaRate" type="number" min="0" max="20" step="1">
+                </label>
+                <label>Other taxable withholding (%)
+                  <input id="otherRate" type="number" min="0" max="30" step="1">
+                </label>
+              </div>
+            </section>
+
+            <section class="panel mode-panel" id="mode-panel"></section>
+          </div>
+        </section>
+
+        <section class="view" id="budget-view">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="heading-kicker">Budget overview</span>
+                <h3>Monthly Cash Flow</h3>
+              </div>
+              <span id="budget-status">Live estimate</span>
+            </div>
+            <div class="summary-strip" id="budget-summary"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="heading-kicker">Editable expenses</span>
+                <h3>Expense Ledger</h3>
+              </div>
+              <button class="action-button" id="add-budget-row" type="button">Add row</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Expense</th>
+                    <th>Category</th>
+                    <th>Planned</th>
+                    <th>Actual</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="budget-table"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="debt-view">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="heading-kicker">Payoff planning</span>
+                <h3>Debt Strategy</h3>
+              </div>
+              <div class="toolbar">
+                <div class="segmented compact" role="group" aria-label="Debt strategy">
+                  <button class="strategy-button active" data-strategy="avalanche">Avalanche</button>
+                  <button class="strategy-button" data-strategy="snowball">Snowball</button>
+                  <button class="strategy-button" data-strategy="custom">Custom</button>
+                </div>
+                <button class="action-button" id="add-debt-row" type="button">Add debt</button>
+              </div>
+            </div>
+            <div class="debt-list" id="debt-list"></div>
+          </section>
+        </section>
+
+        <section class="view" id="tsp-view">
+          <div class="profile-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <span class="heading-kicker">Plan-linked inputs</span>
+                  <h3>TSP Assumptions</h3>
+                </div>
+                <span>Mirrors Plan</span>
+              </div>
+              <div class="notice" id="tsp-profile-summary"></div>
+              <div class="form-grid">
+                <label>Starting TSP
+                  <input id="startingTsp" type="number" min="0" step="500">
+                </label>
+                <label>Annual return (%)
+                  <input id="returnRate" type="number" min="-50" max="100" step="1">
+                </label>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <span class="heading-kicker">Compounded growth</span>
+                  <h3>TSP Projection</h3>
+                </div>
+                <span>USAF average promotion timing</span>
+              </div>
+              <div class="tsp-chart" id="tsp-chart"></div>
+            </section>
+          </div>
+          <section class="panel">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Year</th>
+                    <th>YOS</th>
+                    <th>Grade</th>
+                    <th>Member TSP</th>
+                    <th>5% Match</th>
+                    <th>Total TSP</th>
+                    <th>Projected Balance</th>
+                  </tr>
+                </thead>
+                <tbody id="tsp-table"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="scenarios-view">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="heading-kicker">What-if analysis</span>
+                <h3>Scenario Builder</h3>
+              </div>
+              <span>User-selected changes</span>
+            </div>
+            <div class="form-grid scenario-controls">
+              <label>Projected grade
+                <select id="scenarioGrade"></select>
+              </label>
+              <label>Years of service change
+                <input id="scenarioYearsDelta" type="number" min="-40" max="40" step="1">
+              </label>
+              <label>Projected duty ZIP
+                <input id="scenarioZip" type="text" inputmode="numeric" maxlength="5" placeholder="No change">
+              </label>
+              <label>Projected BAH locality
+                <div class="resolved-field" id="scenario-resolved-locality">Uses Plan ZIP</div>
+              </label>
+              <label>Projected dependents
+                <select id="scenarioDependents">
+                  <option value="">No change</option>
+                  <option value="with">With Dependents</option>
+                  <option value="without">Without Dependents</option>
+                </select>
+              </label>
+              <label>Special pay change
+                <input id="scenarioSpecialPayDelta" type="number" step="25">
+              </label>
+              <label>Deductions change
+                <input id="scenarioDeductionsDelta" type="number" step="25">
+              </label>
+              <label>TSP rate change (%)
+                <input id="scenarioTspDelta" type="number" min="-92" max="92" step="1">
+              </label>
+              <label>Expense change
+                <input id="scenarioExpenseDelta" type="number" step="25">
+              </label>
+            </div>
+            <div class="scenario-grid" id="scenario-grid"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="app-paydata.js?v=20260519l"></script>
+    <script src="app-bahnames.js?v=20260519l"></script>
+    <script src="app.js?v=20260519l"></script>
+  </body>
+</html>
