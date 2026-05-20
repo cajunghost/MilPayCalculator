@@ -648,6 +648,7 @@ function bindBudgetInputs() {
 }
 
 function renderDebt() {
+  const editableDebts = debts.map((debt, originalIndex) => ({ ...debt, originalIndex }));
   const ordered = orderDebtsForStrategy(normalizedDebts());
   const payoff = simulateDebtPayoff();
   const surplus = planSurplus();
@@ -677,18 +678,20 @@ function renderDebt() {
       <span>Priority</span>
       <span></span>
     </div>
-    ${ordered.length ? ordered.map((debt, index) => `
+    ${editableDebts.length ? editableDebts.map((debt, index) => {
+      const payoffOrder = ordered.findIndex((item) => item.originalIndex === debt.originalIndex) + 1;
+      return `
       <div class="debt-grid debt-edit-row">
-        <div class="debt-index">${index + 1}</div>
+        <div class="debt-index">${payoffOrder || index + 1}</div>
         <input class="inline-input" data-debt="${debt.originalIndex}" data-field="name" value="${debt.name}" aria-label="Debt name">
         <select class="inline-input" data-debt="${debt.originalIndex}" data-field="type" aria-label="Debt type">${optionList(debtTypes, debt.type)}</select>
-        <input class="money-input" type="number" min="0" step="100" data-debt="${debt.originalIndex}" data-field="balance" value="${debt.balance}" aria-label="Balance">
+        <input class="money-input" type="number" min="0" step="100" data-debt="${debt.originalIndex}" data-field="balance" value="${inputValue(debt.balance)}" aria-label="Balance">
         <input class="money-input" type="number" min="0" step="0.1" data-debt="${debt.originalIndex}" data-field="aprPercent" value="${percentInputValue(debt.apr)}" aria-label="APR percent">
-        <input class="money-input" type="number" min="0" step="25" data-debt="${debt.originalIndex}" data-field="payment" value="${debt.payment}" aria-label="Payment">
+        <input class="money-input" type="number" min="0" step="25" data-debt="${debt.originalIndex}" data-field="payment" value="${inputValue(debt.payment)}" aria-label="Payment">
         <input class="money-input" type="number" min="1" step="1" data-debt="${debt.originalIndex}" data-field="priority" value="${debt.priority}" aria-label="Custom priority">
         <button class="icon-button" data-delete-debt="${debt.originalIndex}" type="button" title="Delete debt">X</button>
-      </div>
-    `).join("") : `<div class="empty-state compact-empty">Add a debt account to start payoff planning.</div>`}`;
+      </div>`;
+    }).join("") : `<div class="empty-state compact-empty">Add a debt account to start payoff planning.</div>`}`;
   document.querySelector("#debt-schedule").innerHTML = payoff.schedule.length ? payoff.schedule.slice(0, 240).map((row) => `
     <tr>
       <td>${row.month}</td>
@@ -865,7 +868,7 @@ function bind() {
     renderBudget();
   });
   document.querySelector("#add-debt-row").addEventListener("click", () => {
-    debts.push({ name: "", type: "Other Debt", balance: "", apr: 0, payment: "", priority: debts.length + 1 });
+    debts.push({ name: "", type: "Other Debt", balance: "", apr: "", payment: "", priority: debts.length + 1 });
     renderDebt();
   });
   document.querySelector("#debtExtraPayment").addEventListener("input", (event) => {
