@@ -35,6 +35,8 @@ select {
   display: grid;
   grid-template-columns: 292px minmax(0, 1fr);
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .sidebar {
@@ -159,6 +161,8 @@ select {
 .main {
   padding: 24px;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -250,6 +254,7 @@ select {
 .view.active {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .profile-grid {
@@ -257,6 +262,7 @@ select {
   grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+  min-width: 0;
 }
 
 .panel {
@@ -265,6 +271,8 @@ select {
   padding: 18px;
   background: var(--panel);
   box-shadow: var(--shadow);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .panel-heading {
@@ -440,8 +448,9 @@ select:focus {
 .summary-strip,
 .scenario-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .summary-card,
@@ -451,6 +460,7 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-2);
+  min-width: 0;
 }
 
 .summary-card span,
@@ -467,6 +477,7 @@ select:focus {
   margin-top: 8px;
   font-size: 1.2rem;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .insight-grid {
@@ -565,6 +576,9 @@ td.money {
 .debt-list {
   display: grid;
   gap: 10px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
 }
 
 .debt-row {
@@ -583,6 +597,7 @@ td.money {
   grid-template-columns: 40px minmax(140px, 1fr) minmax(130px, 0.7fr) 120px 100px 120px 92px 38px;
   gap: 10px;
   align-items: center;
+  min-width: 900px;
 }
 
 .debt-header {
@@ -648,6 +663,7 @@ td.money {
   border-radius: 8px;
   background: var(--panel-2);
   overflow: hidden;
+  max-width: 100%;
 }
 
 .debt-bar {
@@ -755,10 +771,13 @@ td.money {
   .summary-strip,
   .scenario-grid,
   .insight-grid,
-  .debt-grid,
   .kpi-grid,
   .nav {
     grid-template-columns: 1fr;
+  }
+
+  .debt-grid {
+    grid-template-columns: 40px minmax(140px, 1fr) minmax(130px, 0.7fr) 120px 100px 120px 92px 38px;
   }
 
   .debt-header {
