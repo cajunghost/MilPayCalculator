@@ -603,7 +603,7 @@ function renderTsp() {
   document.querySelector("#tsp-chart").innerHTML = ready ? rows.map((row) => {
     const high3Height = Math.max(8, row.high3Total / max * 100);
     const brsHeight = Math.max(8, row.brsTotal / max * 100);
-    return `<div class="comparison-bars" title="Age ${row.age}: High-3 ${currency(row.high3Total)} / BRS ${currency(row.brsTotal)}"><span class="bar high3-bar" style="--h:${high3Height}%"></span><span class="bar brs-bar" style="--h:${brsHeight}%"></span></div>`;
+    return `<div class="comparison-bars" title="Age ${row.age}: High-3 ${currency(row.high3Total)} with no TSP match / BRS ${currency(row.brsTotal)} with TSP match"><span class="bar high3-bar" style="--h:${high3Height}%"></span><span class="bar brs-bar" style="--h:${brsHeight}%"></span></div>`;
   }).join("") : `<div class="empty-state">No projection yet</div>`;
   document.querySelector("#tsp-table").innerHTML = ready ? rows.map((row) => `
     <tr>
