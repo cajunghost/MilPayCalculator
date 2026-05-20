@@ -10,6 +10,7 @@ const state = {
   profile: {
     grade: "",
     years: "",
+    age: "",
     zip: "",
     dependents: "",
     specialPays: "",
@@ -17,7 +18,11 @@ const state = {
     tspRate: "",
     protectedBah: "",
     startingTsp: "",
-    returnRate: ""
+    returnRate: "",
+    retirementYears: "",
+    retirementCola: "",
+    withdrawalRate: "",
+    compareThroughAge: ""
   },
   tax: {
     preset: "0",
@@ -195,6 +200,10 @@ function compensation(profile = state.profile) {
   return { basicPay, bah, bas: monthlyBas, specialPays, tsp, grossMilitary, extraGross: extraIncomeGross(), estimatedTax, net };
 }
 
+function assumptionNumber(value, fallback) {
+  return value === "" || value === null || value === undefined ? fallback : Number(value);
+}
+
 function plannedSpend() {
   return budgetLines.reduce((sum, line) => sum + Number(line.planned || 0), 0);
 }
@@ -253,13 +262,30 @@ function nextPromotionInfo(profile = state.profile) {
   return { nextGrade: next[0], yearsUntil, threshold: next[1] };
 }
 
-function retirementProjection() {
+function projectedProfileAtYears(projectedYears, includePromotion = true) {
+  const startingYears = Number(state.profile.years || 0);
+  const grade = includePromotion
+    ? projectedGradeFromSelected(state.profile.grade, startingYears, projectedYears)
+    : state.profile.grade;
+  return { ...state.profile, grade, years: projectedYears };
+}
+
+function high36AveragePay(retirementYears) {
+  if (!state.profile.grade || state.profile.years === "") return 0;
+  const years = [retirementYears - 2, retirementYears - 1, retirementYears].map((year) => Math.max(0, year));
+  const pays = years.map((year) => lookupPay(projectedProfileAtYears(year)));
+  return pays.reduce((sum, pay) => sum + pay, 0) / pays.length;
+}
+
+function retirementProjection(options = {}) {
   if (!state.profile.grade || state.profile.years === "") return [];
-  let balance = Number(state.profile.startingTsp || 0);
+  let balance = Number((options.startingBalance ?? state.profile.startingTsp) || 0);
   const startYear = new Date().getFullYear();
   const startingYears = Number(state.profile.years || 0);
-  const projectionYears = Math.max(1, 51 - Math.min(startingYears, 50));
-  const monthlyReturnRate = Math.pow(1 + Number(state.profile.returnRate || 0), 1 / 12) - 1;
+  const endingYears = options.endingYears ?? 50;
+  const includeMatch = options.includeMatch ?? true;
+  const projectionYears = Math.max(1, endingYears - Math.min(startingYears, endingYears) + 1);
+  const monthlyReturnRate = Math.pow(1 + assumptionNumber(state.profile.returnRate, 0.06), 1 / 12) - 1;
   return Array.from({ length: projectionYears }, (_, index) => {
     const years = startingYears + index;
     const grade = index === 0
@@ -267,7 +293,7 @@ function retirementProjection() {
       : projectedGradeFromSelected(state.profile.grade, startingYears, years);
     const projectedProfile = { ...state.profile, grade, years };
     const pay = lookupPay(projectedProfile);
-    const match = pay * 0.05;
+    const match = includeMatch ? pay * 0.05 : 0;
     const memberContribution = pay * Number(state.profile.tspRate || 0);
     const monthlyTsp = match + memberContribution;
     const startingBalance = balance;
@@ -275,6 +301,58 @@ function retirementProjection() {
       balance = (balance + monthlyTsp) * (1 + monthlyReturnRate);
     }
     return { year: startYear + index, years, grade, pay, memberContribution, match, monthlyTsp, startingBalance, balance };
+  });
+}
+
+function retirementComparison() {
+  if (!state.profile.grade || state.profile.years === "" || state.profile.age === "") return [];
+  const currentYears = Number(state.profile.years || 0);
+  const currentAge = Number(state.profile.age || 0);
+  const retirementYears = Math.max(currentYears, 20, Math.min(50, assumptionNumber(state.profile.retirementYears, Math.max(20, currentYears))));
+  const compareThroughAge = Math.max(currentAge, assumptionNumber(state.profile.compareThroughAge, 90));
+  const yearsUntilRetirement = Math.max(0, retirementYears - currentYears);
+  const retirementAge = currentAge + yearsUntilRetirement;
+  const retirementYear = new Date().getFullYear() + yearsUntilRetirement;
+  const high36 = high36AveragePay(retirementYears);
+  const high3MonthlyPension = high36 * retirementYears * 0.025;
+  const brsMonthlyPension = high36 * retirementYears * 0.02;
+  const high3TspRows = retirementProjection({ endingYears: retirementYears, includeMatch: false });
+  const brsTspRows = retirementProjection({ endingYears: retirementYears, includeMatch: true });
+  const high3StartingBalance = high3TspRows.at(-1)?.balance ?? Number(state.profile.startingTsp || 0);
+  const brsStartingBalance = brsTspRows.at(-1)?.balance ?? Number(state.profile.startingTsp || 0);
+  const cola = assumptionNumber(state.profile.retirementCola, 0.025);
+  const withdrawalRate = assumptionNumber(state.profile.withdrawalRate, 0.04);
+  const investmentReturn = assumptionNumber(state.profile.returnRate, 0.06);
+  const ages = Array.from({ length: Math.max(1, compareThroughAge - retirementAge + 1) }, (_, index) => retirementAge + index);
+  let high3Balance = high3StartingBalance;
+  let brsBalance = brsStartingBalance;
+  return ages.map((age, index) => {
+    const colaFactor = Math.pow(1 + cola, index);
+    const high3Pension = high3MonthlyPension * colaFactor;
+    const brsPension = brsMonthlyPension * colaFactor;
+    const high3TspIncome = high3Balance * withdrawalRate / 12;
+    const brsTspIncome = brsBalance * withdrawalRate / 12;
+    const high3Total = high3Pension + high3TspIncome;
+    const brsTotal = brsPension + brsTspIncome;
+    const row = {
+      age,
+      year: retirementYear + index,
+      retirementAge,
+      retirementYears,
+      high36,
+      high3Balance,
+      brsBalance,
+      high3Pension,
+      brsPension,
+      high3TspIncome,
+      brsTspIncome,
+      high3Total,
+      brsTotal,
+      advantage: brsTotal - high3Total
+    };
+    high3Balance = Math.max(0, (high3Balance - high3TspIncome * 12) * (1 + investmentReturn));
+    brsBalance = Math.max(0, (brsBalance - brsTspIncome * 12) * (1 + investmentReturn));
+    return row;
   });
 }
 
@@ -512,28 +590,34 @@ function bindDebtInputs() {
 }
 
 function renderTsp() {
-  const rows = retirementProjection();
-  const max = Math.max(...rows.map((row) => row.balance), 1);
+  const rows = retirementComparison();
+  const max = Math.max(...rows.map((row) => Math.max(row.high3Total, row.brsTotal)), 1);
   const loc = selectedLocality();
-  const ready = state.profile.grade && state.profile.years !== "";
+  const ready = state.profile.grade && state.profile.years !== "" && state.profile.age !== "";
+  const retirementAge = rows[0]?.retirementAge;
+  const retirementYears = rows[0]?.retirementYears;
+  const high36 = rows[0]?.high36 ?? 0;
   document.querySelector("#tsp-profile-summary").textContent = ready
-    ? `${gradeLabel(state.profile.grade)} / ${state.profile.years} YOS / ${loc ? loc.name : "No mapped BAH locality"} / TSP ${ratePercent(state.profile.tspRate)}% / Projection to 50 YOS`
-    : "Select grade and years of service on the Plan tab to build the TSP projection.";
+    ? `${gradeLabel(state.profile.grade)} / ${state.profile.years} YOS / age ${state.profile.age} / ${loc ? loc.name : "No mapped BAH locality"} / retire at ${retirementYears} YOS around age ${retirementAge} / High-36 estimate ${currency(high36)}`
+    : "Select grade, years of service, and service member age on the Plan tab to build the retirement comparison.";
   document.querySelector("#tsp-chart").innerHTML = ready ? rows.map((row) => {
-    const height = Math.max(8, row.balance / max * 100);
-    return `<div class="bar" title="${row.year}: ${currency(row.balance)}" style="--h:${height}%"></div>`;
+    const high3Height = Math.max(8, row.high3Total / max * 100);
+    const brsHeight = Math.max(8, row.brsTotal / max * 100);
+    return `<div class="comparison-bars" title="Age ${row.age}: High-3 ${currency(row.high3Total)} / BRS ${currency(row.brsTotal)}"><span class="bar high3-bar" style="--h:${high3Height}%"></span><span class="bar brs-bar" style="--h:${brsHeight}%"></span></div>`;
   }).join("") : `<div class="empty-state">No projection yet</div>`;
   document.querySelector("#tsp-table").innerHTML = ready ? rows.map((row) => `
     <tr>
+      <td>${row.age}</td>
       <td>${row.year}</td>
-      <td>${row.years}</td>
-      <td>${gradeLabel(row.grade)}</td>
-      <td class="money tsp-money">${currency(row.memberContribution)}</td>
-      <td class="money tsp-money">${currency(row.match)}</td>
-      <td class="money tsp-money">${currency(row.monthlyTsp)}</td>
-      <td class="money tsp-money">${currency(row.balance)}</td>
+      <td class="money tsp-money">${currency(row.high3Pension)}</td>
+      <td class="money tsp-money">${currency(row.high3TspIncome)}</td>
+      <td class="money tsp-money">${currency(row.high3Total)}</td>
+      <td class="money tsp-money">${currency(row.brsPension)}</td>
+      <td class="money tsp-money">${currency(row.brsTspIncome)}</td>
+      <td class="money tsp-money">${currency(row.brsTotal)}</td>
+      <td class="money tsp-money ${row.advantage >= 0 ? "positive" : "negative"}">${currency(row.advantage)}</td>
     </tr>
-  `).join("") : `<tr><td colspan="7">Select grade and years of service on the Plan tab.</td></tr>`;
+  `).join("") : `<tr><td colspan="9">Select grade, years of service, and service member age on the Plan tab.</td></tr>`;
 }
 
 function renderScenario() {
@@ -561,6 +645,7 @@ function renderScenario() {
 function syncInputs() {
   document.querySelector("#grade").value = state.profile.grade;
   document.querySelector("#years").value = state.profile.years;
+  document.querySelector("#age").value = state.profile.age;
   document.querySelector("#zip").value = state.profile.zip;
   document.querySelector("#dependents").value = state.profile.dependents;
   document.querySelector("#specialPays").value = state.profile.specialPays;
@@ -574,6 +659,10 @@ function syncInputs() {
   document.querySelector("#otherRate").value = percentInputValue(state.tax.other);
   document.querySelector("#startingTsp").value = state.profile.startingTsp;
   document.querySelector("#returnRate").value = ratePercent(state.profile.returnRate);
+  document.querySelector("#retirementYears").value = state.profile.retirementYears;
+  document.querySelector("#retirementCola").value = ratePercent(state.profile.retirementCola);
+  document.querySelector("#withdrawalRate").value = ratePercent(state.profile.withdrawalRate);
+  document.querySelector("#compareThroughAge").value = state.profile.compareThroughAge;
   document.querySelector("#scenarioGrade").value = state.scenario.grade;
   document.querySelector("#scenarioYearsDelta").value = state.scenario.yearsDelta;
   document.querySelector("#scenarioZip").value = state.scenario.zip;
@@ -646,12 +735,12 @@ function bind() {
     renderDebt();
   });
 
-  ["grade", "years", "zip", "dependents", "specialPays", "deductions", "tspRate", "protectedBah", "startingTsp", "returnRate"].forEach((id) => {
+  ["grade", "years", "age", "zip", "dependents", "specialPays", "deductions", "tspRate", "protectedBah", "startingTsp", "returnRate", "retirementYears", "retirementCola", "withdrawalRate", "compareThroughAge"].forEach((id) => {
     document.querySelector(`#${id}`).addEventListener("input", (event) => {
       const value = event.target.value;
       if (["grade", "dependents"].includes(id)) state.profile[id] = value;
       else if (id === "zip") state.profile.zip = normalizeZip(value);
-      else if (["tspRate", "returnRate"].includes(id)) state.profile[id] = value === "" ? "" : Number(value) / 100;
+      else if (["tspRate", "returnRate", "retirementCola", "withdrawalRate"].includes(id)) state.profile[id] = value === "" ? "" : Number(value) / 100;
       else state.profile[id] = value === "" ? "" : Number(value);
       render();
     });
@@ -708,4 +797,6 @@ window.MilPayBudgetDebug = {
   state,
   render,
   retirementProjection
+  ,
+  retirementComparison
 };

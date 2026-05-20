@@ -652,6 +652,28 @@ td.money {
   background: linear-gradient(180deg, #16a394, #006b62);
 }
 
+.comparison-bars {
+  flex: 1;
+  min-width: 22px;
+  height: 100%;
+  display: flex;
+  align-items: end;
+  gap: 3px;
+}
+
+.comparison-bars .bar {
+  display: block;
+  min-width: 8px;
+}
+
+.high3-bar {
+  background: linear-gradient(180deg, #55766f, #263d38);
+}
+
+.brs-bar {
+  background: linear-gradient(180deg, #16a394, #006b62);
+}
+
 .scenario-controls {
   margin-bottom: 16px;
 }

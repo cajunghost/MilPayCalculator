@@ -28,8 +28,8 @@
           <button class="nav-button" data-view="debt" aria-label="Debt">
             <span class="icon">$</span><span>Debt</span>
           </button>
-          <button class="nav-button" data-view="tsp" aria-label="TSP">
-            <span class="icon">T</span><span>TSP</span>
+          <button class="nav-button" data-view="tsp" aria-label="Retirement Benefits">
+            <span class="icon">R</span><span>Retirement Benefits</span>
           </button>
           <button class="nav-button" data-view="scenarios" aria-label="Scenarios">
             <span class="icon">S</span><span>Scenarios</span>
@@ -72,6 +72,9 @@
                 </label>
                 <label>Years of service
                   <input id="years" type="number" min="0" max="50" step="1">
+                </label>
+                <label>Service member age
+                  <input id="age" type="number" min="17" max="80" step="1" placeholder="Current age">
                 </label>
                 <label>Duty ZIP
                   <input id="zip" type="text" inputmode="numeric" maxlength="5" placeholder="Enter 5-digit ZIP">
@@ -200,31 +203,52 @@
                 <label>Annual return (%)
                   <input id="returnRate" type="number" min="-50" max="100" step="1">
                 </label>
+                <label>Retirement YOS
+                  <input id="retirementYears" type="number" min="20" max="50" step="1" placeholder="20">
+                </label>
+                <label>Retirement COLA (%)
+                  <input id="retirementCola" type="number" min="0" max="10" step="0.1" placeholder="2.5">
+                </label>
+                <label>TSP withdrawal rate (%)
+                  <input id="withdrawalRate" type="number" min="0" max="15" step="0.1" placeholder="4">
+                </label>
+                <label>Compare through age
+                  <input id="compareThroughAge" type="number" min="60" max="110" step="1" placeholder="90">
+                </label>
               </div>
             </section>
             <section class="panel">
               <div class="panel-heading">
                 <div>
                   <span class="heading-kicker">Compounded growth</span>
-                  <h3>TSP Projection</h3>
+                  <h3>Retirement Benefits Summary</h3>
                 </div>
-                <span>USAF average promotion timing</span>
+                <span>High-3 vs BRS</span>
               </div>
               <div class="tsp-chart" id="tsp-chart"></div>
             </section>
           </div>
           <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="heading-kicker">Age-by-age comparison</span>
+                <h3>Projected Retirement Compensation</h3>
+              </div>
+              <span>Monthly values</span>
+            </div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Year</th>
-                    <th>YOS</th>
-                    <th>Grade</th>
-                    <th>Member TSP</th>
-                    <th>5% Match</th>
-                    <th>Total TSP</th>
-                    <th>Projected Balance</th>
+                    <th>Age</th>
+                    <th>Calendar Year</th>
+                    <th>High-3 Pension</th>
+                    <th>High-3 TSP Income</th>
+                    <th>High-3 Total</th>
+                    <th>BRS Pension</th>
+                    <th>BRS TSP Income</th>
+                    <th>BRS Total</th>
+                    <th>BRS Advantage</th>
                   </tr>
                 </thead>
                 <tbody id="tsp-table"></tbody>
@@ -281,10 +305,10 @@
       </main>
     </div>
 
-    <script src="app-data.js?v=20260519m"></script>
-    <script src="app-zipmha.js?v=20260519m"></script>
-    <script src="app-paydata.js?v=20260519m"></script>
-    <script src="app-bahnames.js?v=20260519m"></script>
-    <script src="app.js?v=20260519m"></script>
+    <script src="app-data.js?v=20260519n"></script>
+    <script src="app-zipmha.js?v=20260519n"></script>
+    <script src="app-paydata.js?v=20260519n"></script>
+    <script src="app-bahnames.js?v=20260519n"></script>
+    <script src="app.js?v=20260519n"></script>
   </body>
 </html>
