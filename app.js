@@ -31,6 +31,10 @@ const state = {
     fica: 0,
     other: 0
   },
+  debt: {
+    extraPayment: "",
+    scenario: "minimum"
+  },
   extraIncome: [],
   scenario: {
     grade: "",
@@ -210,6 +214,10 @@ function plannedSpend() {
 
 function actualSpend() {
   return budgetLines.reduce((sum, line) => sum + Number(line.actual || 0), 0);
+}
+
+function planSurplus() {
+  return compensation().net - plannedSpend();
 }
 
 function trackForGrade(grade) {
@@ -504,6 +512,102 @@ function renderBudgetSummary() {
   `).join("");
 }
 
+function normalizedDebts() {
+  return debts
+    .map((debt, originalIndex) => ({
+      ...debt,
+      originalIndex,
+      name: debt.name || `Debt ${originalIndex + 1}`,
+      balance: Number(debt.balance || 0),
+      apr: Number(debt.apr || 0),
+      payment: Number(debt.payment || 0),
+      priority: Number(debt.priority || originalIndex + 1)
+    }))
+    .filter((debt) => debt.balance > 0);
+}
+
+function orderDebtsForStrategy(items = normalizedDebts()) {
+  return [...items].sort((a, b) => {
+    if (state.strategy === "avalanche") return b.apr - a.apr || a.balance - b.balance;
+    if (state.strategy === "snowball") return a.balance - b.balance || b.apr - a.apr;
+    return a.priority - b.priority || a.originalIndex - b.originalIndex;
+  });
+}
+
+function selectedDebtExtra() {
+  const surplus = Math.max(0, planSurplus());
+  const custom = Number(state.debt.extraPayment || 0);
+  if (state.debt.scenario === "half-surplus") return surplus * 0.5 + custom;
+  if (state.debt.scenario === "full-surplus") return surplus + custom;
+  if (state.debt.scenario === "custom") return custom;
+  return custom;
+}
+
+function simulateDebtPayoff(extraPayment = selectedDebtExtra(), strategy = state.strategy) {
+  const starting = normalizedDebts();
+  if (!starting.length) return { months: 0, totalInterest: 0, totalPaid: 0, schedule: [], snapshots: [], ordered: [] };
+  const orderedIndexes = orderDebtsForStrategy(starting).map((debt) => debt.originalIndex);
+  const items = starting.map((debt) => ({ ...debt }));
+  const schedule = [];
+  const snapshots = [];
+  let totalInterest = 0;
+  let totalPaid = 0;
+  let snowballPayment = Math.max(0, Number(extraPayment || 0));
+  let month = 0;
+
+  while (items.some((debt) => debt.balance > 0.005) && month < 720) {
+    month += 1;
+    let monthInterest = 0;
+    let monthPayment = 0;
+    items.forEach((debt) => {
+      if (debt.balance <= 0) return;
+      const interest = debt.balance * debt.apr / 12;
+      debt.balance += interest;
+      debt.monthInterest = interest;
+      monthInterest += interest;
+    });
+
+    let target = orderDebtsForStrategy(items.filter((debt) => debt.balance > 0.005)).find(Boolean);
+    items.forEach((debt) => {
+      if (debt.balance <= 0.005) return;
+      const basePayment = Math.min(debt.balance, Number(debt.payment || 0));
+      debt.balance -= basePayment;
+      monthPayment += basePayment;
+      if (basePayment < Number(debt.payment || 0)) {
+        snowballPayment += Number(debt.payment || 0);
+      }
+    });
+
+    target = orderDebtsForStrategy(items.filter((debt) => debt.balance > 0.005)).find(Boolean);
+    if (target && snowballPayment > 0) {
+      const extra = Math.min(target.balance, snowballPayment);
+      target.balance -= extra;
+      monthPayment += extra;
+      if (target.balance <= 0.005) {
+        snowballPayment += Number(target.payment || 0);
+      }
+    }
+
+    const remainingBalance = items.reduce((sum, debt) => sum + Math.max(0, debt.balance), 0);
+    totalInterest += monthInterest;
+    totalPaid += monthPayment;
+    const projectedDate = new Date();
+    projectedDate.setMonth(projectedDate.getMonth() + month);
+    schedule.push({
+      month,
+      target: target?.name || "Final payoff",
+      payment: monthPayment,
+      principal: Math.max(0, monthPayment - monthInterest),
+      interest: monthInterest,
+      remainingBalance,
+      date: projectedDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    });
+    snapshots.push({ month, remainingBalance });
+  }
+
+  return { months: month, totalInterest, totalPaid, schedule, snapshots, ordered: orderedIndexes };
+}
+
 function renderBudget() {
   const c = compensation();
   renderBudgetSummary();
@@ -531,6 +635,7 @@ function bindBudgetInputs() {
       budgetLines[index][field] = ["name", "category"].includes(field) ? event.target.value : Number(event.target.value || 0);
       renderModePanel();
       renderBudgetSummary();
+      renderDebt();
       renderScenario();
     });
   });
@@ -543,12 +648,25 @@ function bindBudgetInputs() {
 }
 
 function renderDebt() {
-  const ordered = [...debts].map((debt, originalIndex) => ({ ...debt, originalIndex })).sort((a, b) => {
-    if (state.strategy === "avalanche") return b.apr - a.apr;
-    if (state.strategy === "snowball") return a.balance - b.balance;
-    return a.priority - b.priority;
-  });
+  const ordered = orderDebtsForStrategy(normalizedDebts());
+  const payoff = simulateDebtPayoff();
+  const surplus = planSurplus();
+  const extra = selectedDebtExtra();
+  const payoffDate = payoff.schedule.at(-1)?.date || "No payoff date";
+  const debtBalance = normalizedDebts().reduce((sum, debt) => sum + debt.balance, 0);
+  const monthlyMinimum = normalizedDebts().reduce((sum, debt) => sum + debt.payment, 0);
+  document.querySelector("#debt-summary").innerHTML = [
+    ["Debt balance", debtBalance],
+    ["Minimum payments", monthlyMinimum],
+    ["Extra applied", extra],
+    ["Plan surplus", surplus]
+  ].map(([label, value]) => `<div class="summary-card"><span>${label}</span><strong class="${value < 0 ? "negative" : ""}">${currency(value)}</strong></div>`).join("");
+  document.querySelector("#debt-chart").innerHTML = payoff.snapshots.length ? payoff.snapshots.map((point) => {
+    const height = Math.max(4, debtBalance ? point.remainingBalance / debtBalance * 100 : 0);
+    return `<div class="debt-bar" title="Month ${point.month}: ${currency(point.remainingBalance)}" style="--h:${height}%"></div>`;
+  }).join("") : `<div class="empty-state compact-empty">Add debts and monthly payments to generate payoff visuals.</div>`;
   document.querySelector("#debt-list").innerHTML = `
+    <div class="notice">Strategy: ${state.strategy.toUpperCase()} | Payoff: ${payoff.months ? `${payoff.months} months (${payoffDate})` : "Add debt details"} | Estimated interest: ${currency(payoff.totalInterest)} | Uses Plan surplus scenario: ${currency(extra)} extra monthly</div>
     <div class="debt-grid debt-header" aria-hidden="true">
       <span>Order</span>
       <span>Debt name</span>
@@ -556,6 +674,7 @@ function renderDebt() {
       <span>Balance</span>
       <span>APR %</span>
       <span>Payment</span>
+      <span>Priority</span>
       <span></span>
     </div>
     ${ordered.length ? ordered.map((debt, index) => `
@@ -566,19 +685,32 @@ function renderDebt() {
         <input class="money-input" type="number" min="0" step="100" data-debt="${debt.originalIndex}" data-field="balance" value="${debt.balance}" aria-label="Balance">
         <input class="money-input" type="number" min="0" step="0.1" data-debt="${debt.originalIndex}" data-field="aprPercent" value="${percentInputValue(debt.apr)}" aria-label="APR percent">
         <input class="money-input" type="number" min="0" step="25" data-debt="${debt.originalIndex}" data-field="payment" value="${debt.payment}" aria-label="Payment">
+        <input class="money-input" type="number" min="1" step="1" data-debt="${debt.originalIndex}" data-field="priority" value="${debt.priority}" aria-label="Custom priority">
         <button class="icon-button" data-delete-debt="${debt.originalIndex}" type="button" title="Delete debt">X</button>
       </div>
     `).join("") : `<div class="empty-state compact-empty">Add a debt account to start payoff planning.</div>`}`;
+  document.querySelector("#debt-schedule").innerHTML = payoff.schedule.length ? payoff.schedule.slice(0, 240).map((row) => `
+    <tr>
+      <td>${row.month}</td>
+      <td>${row.target}</td>
+      <td class="money">${currency(row.payment)}</td>
+      <td class="money">${currency(row.principal)}</td>
+      <td class="money">${currency(row.interest)}</td>
+      <td class="money">${currency(row.remainingBalance)}</td>
+      <td>${row.date}</td>
+    </tr>
+  `).join("") : `<tr><td colspan="7">Add debts with balances, APR, and payments to generate an amortization schedule.</td></tr>`;
   bindDebtInputs();
 }
 
 function bindDebtInputs() {
   document.querySelectorAll("[data-debt]").forEach((input) => {
-    input.addEventListener("input", (event) => {
+    input.addEventListener("change", (event) => {
       const index = Number(event.target.dataset.debt);
       const field = event.target.dataset.field;
       if (field === "aprPercent") debts[index].apr = Number(event.target.value || 0) / 100;
       else debts[index][field] = ["name", "type"].includes(field) ? event.target.value : Number(event.target.value || 0);
+      renderDebt();
     });
   });
   document.querySelectorAll("[data-delete-debt]").forEach((button) => {
@@ -657,6 +789,8 @@ function syncInputs() {
   document.querySelector("#stateRate").value = percentInputValue(state.tax.state);
   document.querySelector("#ficaRate").value = percentInputValue(state.tax.fica);
   document.querySelector("#otherRate").value = percentInputValue(state.tax.other);
+  document.querySelector("#debtExtraPayment").value = state.debt.extraPayment;
+  document.querySelector("#debtScenario").value = state.debt.scenario;
   document.querySelector("#startingTsp").value = state.profile.startingTsp;
   document.querySelector("#returnRate").value = ratePercent(state.profile.returnRate);
   document.querySelector("#retirementYears").value = state.profile.retirementYears;
@@ -732,6 +866,14 @@ function bind() {
   });
   document.querySelector("#add-debt-row").addEventListener("click", () => {
     debts.push({ name: "", type: "Other Debt", balance: "", apr: 0, payment: "", priority: debts.length + 1 });
+    renderDebt();
+  });
+  document.querySelector("#debtExtraPayment").addEventListener("input", (event) => {
+    state.debt.extraPayment = event.target.value === "" ? "" : Number(event.target.value);
+    renderDebt();
+  });
+  document.querySelector("#debtScenario").addEventListener("input", (event) => {
+    state.debt.scenario = event.target.value;
     renderDebt();
   });
 

@@ -33,7 +33,7 @@ This is a static site with no build step. Deploy the `MilPayBudgetWeb` folder as
 - Duty ZIP resolver paired to public ZIP-to-MHA data and workbook BAH rate tables
 - Tax withholding presets and manual percentage inputs against taxable pays
 - Budget summary with add/delete fill-in-the-blank expense rows
-- Debt payoff ordering with add/delete editable debt rows
+- Debt payoff workspace with add/delete editable debt rows, avalanche/snowball/custom priority ordering, Plan-surplus scenarios, payoff graphics, and amortization schedules
 - Retirement Benefits comparison using the Plan tab profile, service member age, High-3 pension, BRS pension, member TSP contribution, no High-3 government match, 5% BRS match, starting balance, monthly compounding, COLA, withdrawal assumptions, and USAF average time-in-grade promotion timing
 - Scenario comparison using user-selected grade, YOS, duty ZIP, dependent status, pay, deduction, TSP, and expense changes
 

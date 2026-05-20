@@ -181,7 +181,47 @@
                 <button class="action-button" id="add-debt-row" type="button">Add debt</button>
               </div>
             </div>
+            <div class="form-grid debt-controls">
+              <label>Extra debt payment
+                <input id="debtExtraPayment" type="number" min="0" step="25" placeholder="Optional">
+              </label>
+              <label>Payoff scenario
+                <select id="debtScenario">
+                  <option value="minimum">Minimum payments only</option>
+                  <option value="half-surplus">Use 50% of Plan surplus</option>
+                  <option value="full-surplus">Use full Plan surplus</option>
+                  <option value="custom">Use custom extra only</option>
+                </select>
+              </label>
+            </div>
+            <div class="summary-strip debt-summary" id="debt-summary"></div>
+            <div class="debt-chart" id="debt-chart"></div>
             <div class="debt-list" id="debt-list"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="heading-kicker">Amortization</span>
+                <h3>Projected Payoff Schedule</h3>
+              </div>
+              <span>Strategy driven</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Target Debt</th>
+                    <th>Total Payment</th>
+                    <th>Principal</th>
+                    <th>Interest</th>
+                    <th>Remaining Balance</th>
+                    <th>Projected Date</th>
+                  </tr>
+                </thead>
+                <tbody id="debt-schedule"></tbody>
+              </table>
+            </div>
           </section>
         </section>
 
@@ -305,10 +345,10 @@
       </main>
     </div>
 
-    <script src="app-data.js?v=20260519o"></script>
-    <script src="app-zipmha.js?v=20260519o"></script>
-    <script src="app-paydata.js?v=20260519o"></script>
-    <script src="app-bahnames.js?v=20260519o"></script>
-    <script src="app.js?v=20260519o"></script>
+    <script src="app-data.js?v=20260519p"></script>
+    <script src="app-zipmha.js?v=20260519p"></script>
+    <script src="app-paydata.js?v=20260519p"></script>
+    <script src="app-bahnames.js?v=20260519p"></script>
+    <script src="app.js?v=20260519p"></script>
   </body>
 </html>
