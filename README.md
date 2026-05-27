@@ -1,42 +1,41 @@
 # MilPay Budget Web Prototype
 
-This is a static website prototype for the military pay and budgeting planner.
+A static web prototype for a military pay, BAH, budgeting, debt-payoff, and retirement planner. Dark UI, no build step.
 
-## Run Locally
+## Run locally
 
-From this folder:
+From the repo root:
 
-```powershell
-python -m http.server 8000
+```bash
+python3 -m http.server 8000
 ```
 
-Then open:
-
-```text
-http://localhost:8000
-```
+Then open `http://localhost:8000`.
 
 ## Deploy
 
-This is a static site with no build step. Deploy the `MilPayBudgetWeb` folder as the site root.
+No build step. Deploy the repo root as the site root.
 
-- Netlify: publish directory `.`
-- Vercel: framework preset `Other`, output directory `.`
-- GitHub Pages: publish the folder contents from the selected branch
-- Any static host: upload `index.html`, CSS, JS, and data files together
+- Netlify: publish directory `.` (config in `netlify.toml`)
+- Vercel: framework preset `Other`, output directory `.` (config in `vercel.json`)
+- Cloudflare Workers / Pages: `wrangler.jsonc` exposes the root as the asset directory
+- GitHub Pages: publish the branch root
 
-## Included Workflows
+## Features
 
-- Pay and allowance dashboard
-- Blank service profile inputs
-- Basic pay, BAH, BAS, TSP, deductions, tax, and extra-income calculation
-- Duty ZIP resolver paired to public ZIP-to-MHA data and workbook BAH rate tables
-- Tax withholding presets and manual percentage inputs against taxable pays
-- Budget summary with add/delete fill-in-the-blank expense rows
-- Debt payoff workspace with add/delete editable debt rows, avalanche/snowball/custom priority ordering, Plan-surplus scenarios, payoff graphics, and amortization schedules
-- Retirement Benefits comparison using the Plan tab profile, service member age, High-3 pension, BRS pension, member TSP contribution, no High-3 government match, 5% BRS match, starting balance, monthly compounding, COLA, withdrawal assumptions, and USAF average time-in-grade promotion timing
-- Scenario comparison using user-selected grade, YOS, duty ZIP, dependent status, pay, deduction, TSP, and expense changes
+- **Plan** – grade, YOS, ZIP, dependents, special pays, deductions, TSP rate, tax withholding presets; resolves duty ZIP → MHA → BAH locality
+- **Expenses** – fill-in-the-blank ledger with planned / actual columns and per-row status
+- **Debt** – avalanche / snowball / custom payoff order, Plan-surplus scenarios, payoff chart and full amortization schedule
+- **Retirement Benefits** – High-3 vs BRS comparison with TSP growth, government match (BRS only), COLA, withdrawal-rate assumptions, and USAF average promotion timing
+- **Scenarios** – what-if deltas on grade, YOS, ZIP, dependents, pays, deductions, TSP, and expenses
 
-## Production Notes
+## Workflow extras
 
-The site currently uses embedded pay and BAH rate data generated from the workbook's rate tables plus a local ZIP-to-MHA resolver copied from public 2026 BAH calculator data. A production version should load signed pay, ZIP-to-MHA, and BAH snapshots from official DFAS and DTMO releases, then share the same calculation engine with the later iOS app.
+- **Auto-save** to this browser's `localStorage` – your inputs survive a refresh
+- **Reset planner** button (sidebar) wipes the saved state after a confirm prompt
+- **CSV export** on the Expenses, Debt, and Retirement tabs
+- **Print stylesheet** strips chrome and reformats panels for clean PDF / paper output
+
+## Production notes
+
+The site ships embedded pay and BAH rate tables along with a local ZIP-to-MHA resolver derived from public 2026 BAH calculator data. A production version should hydrate signed pay, ZIP-to-MHA, and BAH snapshots from official DFAS and DTMO releases and share the same calculation engine with the planned iOS app.

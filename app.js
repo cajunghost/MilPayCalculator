@@ -3,50 +3,56 @@ let data = window.MILPAY_DATA || {
   bahLocalities: []
 };
 
-const state = {
-  view: "plan",
-  mode: "command",
-  strategy: "avalanche",
-  profile: {
-    grade: "",
-    years: "",
-    age: "",
-    zip: "",
-    dependents: "",
-    specialPays: "",
-    deductions: "",
-    tspRate: "",
-    protectedBah: "",
-    startingTsp: "",
-    returnRate: "",
-    retirementYears: "",
-    retirementCola: "",
-    withdrawalRate: "",
-    compareThroughAge: ""
-  },
-  tax: {
-    preset: "0",
-    federal: 0,
-    state: 0,
-    fica: 0,
-    other: 0
-  },
-  debt: {
-    extraPayment: "",
-    scenario: "minimum"
-  },
-  extraIncome: [],
-  scenario: {
-    grade: "",
-    yearsDelta: 0,
-    zip: "",
-    dependents: "",
-    specialPayDelta: 0,
-    deductionsDelta: 0,
-    tspDelta: 0,
-    expenseDelta: 0
-  }
-};
+const STORAGE_KEY = "milpay-state-v1";
+
+function defaultState() {
+  return {
+    view: "plan",
+    mode: "command",
+    strategy: "avalanche",
+    profile: {
+      grade: "",
+      years: "",
+      age: "",
+      zip: "",
+      dependents: "",
+      specialPays: "",
+      deductions: "",
+      tspRate: "",
+      protectedBah: "",
+      startingTsp: "",
+      returnRate: "",
+      retirementYears: "",
+      retirementCola: "",
+      withdrawalRate: "",
+      compareThroughAge: ""
+    },
+    tax: {
+      preset: "0",
+      federal: 0,
+      state: 0,
+      fica: 0,
+      other: 0
+    },
+    debt: {
+      extraPayment: "",
+      scenario: "minimum"
+    },
+    extraIncome: [],
+    scenario: {
+      grade: "",
+      yearsDelta: 0,
+      zip: "",
+      dependents: "",
+      specialPayDelta: 0,
+      deductionsDelta: 0,
+      tspDelta: 0,
+      expenseDelta: 0
+    }
+  };
+}
+
+const state = defaultState();
 
 const categories = [
   "Housing / Mortgage",
@@ -137,6 +143,186 @@ async function loadReferenceData() {
       })
     };
   }
+}
+
+function safeStorage() {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const probe = "__milpay_probe__";
+    localStorage.setItem(probe, "1");
+    localStorage.removeItem(probe);
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function persistedSnapshot() {
+  return {
+    version: 1,
+    view: state.view,
+    mode: state.mode,
+    strategy: state.strategy,
+    profile: state.profile,
+    tax: state.tax,
+    debt: state.debt,
+    scenario: state.scenario,
+    extraIncome: state.extraIncome,
+    budgetLines,
+    debts
+  };
+}
+
+function assignKnown(target, source) {
+  if (!source || typeof source !== "object") return;
+  Object.keys(target).forEach((key) => {
+    if (source[key] !== undefined) target[key] = source[key];
+  });
+}
+
+function loadStoredState() {
+  const storage = safeStorage();
+  if (!storage) return;
+  const raw = storage.getItem(STORAGE_KEY);
+  if (!raw) return;
+  let snapshot;
+  try {
+    snapshot = JSON.parse(raw);
+  } catch {
+    storage.removeItem(STORAGE_KEY);
+    return;
+  }
+  if (!snapshot || snapshot.version !== 1) return;
+  if (typeof snapshot.view === "string") state.view = snapshot.view;
+  if (typeof snapshot.mode === "string") state.mode = snapshot.mode;
+  if (typeof snapshot.strategy === "string") state.strategy = snapshot.strategy;
+  assignKnown(state.profile, snapshot.profile);
+  assignKnown(state.tax, snapshot.tax);
+  assignKnown(state.debt, snapshot.debt);
+  assignKnown(state.scenario, snapshot.scenario);
+  if (Array.isArray(snapshot.extraIncome)) {
+    state.extraIncome.length = 0;
+    snapshot.extraIncome.forEach((item) => state.extraIncome.push(item));
+  }
+  if (Array.isArray(snapshot.budgetLines)) {
+    budgetLines.length = 0;
+    snapshot.budgetLines.forEach((line) => budgetLines.push(line));
+  }
+  if (Array.isArray(snapshot.debts)) {
+    debts.length = 0;
+    snapshot.debts.forEach((debt) => debts.push(debt));
+  }
+}
+
+let saveScheduled = false;
+function scheduleSave() {
+  const indicator = document.querySelector("#save-indicator");
+  if (indicator) indicator.textContent = "Saving...";
+  if (saveScheduled) return;
+  saveScheduled = true;
+  const flush = () => {
+    saveScheduled = false;
+    const storage = safeStorage();
+    if (!storage) {
+      if (indicator) indicator.textContent = "Local save off";
+      return;
+    }
+    try {
+      storage.setItem(STORAGE_KEY, JSON.stringify(persistedSnapshot()));
+      if (indicator) indicator.textContent = "Saved";
+    } catch {
+      if (indicator) indicator.textContent = "Save failed";
+    }
+  };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(flush, { timeout: 400 });
+  else setTimeout(flush, 250);
+}
+
+function resetPlanner() {
+  if (!window.confirm("Clear all planner inputs from this browser? This cannot be undone.")) return;
+  const storage = safeStorage();
+  if (storage) storage.removeItem(STORAGE_KEY);
+  const fresh = defaultState();
+  Object.keys(state).forEach((key) => {
+    const value = fresh[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.keys(state[key]).forEach((subKey) => { state[key][subKey] = value[subKey]; });
+    } else {
+      state[key] = value;
+    }
+  });
+  state.extraIncome.length = 0;
+  budgetLines.length = 0;
+  debts.length = 0;
+  setView(state.view);
+  document.querySelectorAll(".mode-button").forEach((item) => item.classList.toggle("active", item.dataset.mode === state.mode));
+  document.querySelectorAll(".strategy-button").forEach((item) => item.classList.toggle("active", item.dataset.strategy === state.strategy));
+  render();
+}
+
+function escapeCsv(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(filename, rows) {
+  const content = rows.map((row) => row.map(escapeCsv).join(",")).join("\r\n");
+  const blob = new Blob([`﻿${content}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function fileStamp() {
+  const now = new Date();
+  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function exportBudgetCsv() {
+  const rows = [["Expense", "Category", "Planned", "Actual"]];
+  budgetLines.forEach((line) => rows.push([line.name, line.category, line.planned, line.actual]));
+  const c = compensation();
+  rows.push([]);
+  rows.push(["Summary", "", "", ""]);
+  rows.push(["Net income after tax", "", c.net, ""]);
+  rows.push(["Planned total", "", plannedSpend(), ""]);
+  rows.push(["Actual total", "", "", actualSpend()]);
+  rows.push(["Remaining planned", "", c.net - plannedSpend(), ""]);
+  downloadCsv(`milpay-budget-${fileStamp()}.csv`, rows);
+}
+
+function exportDebtCsv() {
+  const payoff = simulateDebtPayoff();
+  const rows = [["Month", "Target Debt", "Total Payment", "Principal", "Interest", "Remaining Balance", "Projected Date"]];
+  payoff.schedule.forEach((row) => rows.push([row.month, row.target, row.payment.toFixed(2), row.principal.toFixed(2), row.interest.toFixed(2), row.remainingBalance.toFixed(2), row.date]));
+  rows.push([]);
+  rows.push(["Strategy", state.strategy]);
+  rows.push(["Months to payoff", payoff.months]);
+  rows.push(["Total paid", payoff.totalPaid.toFixed(2)]);
+  rows.push(["Total interest", payoff.totalInterest.toFixed(2)]);
+  downloadCsv(`milpay-debt-${fileStamp()}.csv`, rows);
+}
+
+function exportTspCsv() {
+  const rows = [["Age", "Calendar Year", "High-3 Pension", "High-3 TSP Income (No Match)", "High-3 Total", "BRS Pension", "BRS TSP Income (With Match)", "BRS Total", "BRS Advantage"]];
+  retirementComparison().forEach((row) => rows.push([
+    row.age,
+    row.year,
+    row.high3Pension.toFixed(2),
+    row.high3TspIncome.toFixed(2),
+    row.high3Total.toFixed(2),
+    row.brsPension.toFixed(2),
+    row.brsTspIncome.toFixed(2),
+    row.brsTotal.toFixed(2),
+    row.advantage.toFixed(2)
+  ]));
+  downloadCsv(`milpay-retirement-${fileStamp()}.csv`, rows);
 }
 
 function normalizeZip(value) {
@@ -637,12 +823,14 @@ function bindBudgetInputs() {
       renderBudgetSummary();
       renderDebt();
       renderScenario();
+      scheduleSave();
     });
   });
   document.querySelectorAll("[data-delete-budget]").forEach((button) => {
     button.addEventListener("click", () => {
       budgetLines.splice(Number(button.dataset.deleteBudget), 1);
       render();
+      scheduleSave();
     });
   });
 }
@@ -714,12 +902,14 @@ function bindDebtInputs() {
       if (field === "aprPercent") debts[index].apr = Number(event.target.value || 0) / 100;
       else debts[index][field] = ["name", "type"].includes(field) ? event.target.value : Number(event.target.value || 0);
       renderDebt();
+      scheduleSave();
     });
   });
   document.querySelectorAll("[data-delete-debt]").forEach((button) => {
     button.addEventListener("click", () => {
       debts.splice(Number(button.dataset.deleteDebt), 1);
       renderDebt();
+      scheduleSave();
     });
   });
 }
@@ -818,6 +1008,7 @@ function render() {
   renderDebt();
   renderTsp();
   renderScenario();
+  scheduleSave();
 }
 
 function setView(view) {
@@ -846,7 +1037,10 @@ function bind() {
   fillSelects();
 
   document.querySelectorAll(".nav-button").forEach((button) => {
-    button.addEventListener("click", () => setView(button.dataset.view));
+    button.addEventListener("click", () => {
+      setView(button.dataset.view);
+      scheduleSave();
+    });
   });
   document.querySelectorAll(".mode-button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -860,25 +1054,39 @@ function bind() {
       state.strategy = button.dataset.strategy;
       document.querySelectorAll(".strategy-button").forEach((item) => item.classList.toggle("active", item === button));
       renderDebt();
+      scheduleSave();
     });
   });
 
   document.querySelector("#add-budget-row").addEventListener("click", () => {
     budgetLines.push({ name: "", category: "Miscellaneous", planned: "", actual: "" });
     renderBudget();
+    scheduleSave();
   });
   document.querySelector("#add-debt-row").addEventListener("click", () => {
     debts.push({ name: "", type: "Other Debt", balance: "", apr: "", payment: "", priority: debts.length + 1 });
     renderDebt();
+    scheduleSave();
   });
   document.querySelector("#debtExtraPayment").addEventListener("input", (event) => {
     state.debt.extraPayment = event.target.value === "" ? "" : Number(event.target.value);
     renderDebt();
+    scheduleSave();
   });
   document.querySelector("#debtScenario").addEventListener("input", (event) => {
     state.debt.scenario = event.target.value;
     renderDebt();
+    scheduleSave();
   });
+
+  const resetButton = document.querySelector("#reset-planner");
+  if (resetButton) resetButton.addEventListener("click", resetPlanner);
+  const exportBudget = document.querySelector("#export-budget");
+  if (exportBudget) exportBudget.addEventListener("click", exportBudgetCsv);
+  const exportDebt = document.querySelector("#export-debt");
+  if (exportDebt) exportDebt.addEventListener("click", exportDebtCsv);
+  const exportTsp = document.querySelector("#export-tsp");
+  if (exportTsp) exportTsp.addEventListener("click", exportTspCsv);
 
   ["grade", "years", "age", "zip", "dependents", "specialPays", "deductions", "tspRate", "protectedBah", "startingTsp", "returnRate", "retirementYears", "retirementCola", "withdrawalRate", "compareThroughAge"].forEach((id) => {
     document.querySelector(`#${id}`).addEventListener("input", (event) => {
@@ -908,34 +1116,43 @@ function bind() {
     document.querySelector(`#${id}`).addEventListener("input", (event) => {
       state.scenario[id.replace("scenario", "").replace(/^./, (c) => c.toLowerCase())] = event.target.value;
       renderScenario();
+      scheduleSave();
     });
   });
   document.querySelector("#scenarioZip").addEventListener("input", (event) => {
     state.scenario.zip = normalizeZip(event.target.value);
     renderResolvedLocalities();
     renderScenario();
+    scheduleSave();
   });
   ["scenarioYearsDelta", "scenarioSpecialPayDelta", "scenarioDeductionsDelta", "scenarioExpenseDelta"].forEach((id) => {
     document.querySelector(`#${id}`).addEventListener("input", (event) => {
       state.scenario[id.replace("scenario", "").replace(/^./, (c) => c.toLowerCase())] = Number(event.target.value || 0);
       renderScenario();
+      scheduleSave();
     });
   });
   document.querySelector("#scenarioTspDelta").addEventListener("input", (event) => {
     state.scenario.tspDelta = Number(event.target.value || 0) / 100;
     renderScenario();
+    scheduleSave();
   });
 }
 
+function boot() {
+  loadStoredState();
+  bind();
+  setView(state.view);
+  document.querySelectorAll(".mode-button").forEach((item) => item.classList.toggle("active", item.dataset.mode === state.mode));
+  document.querySelectorAll(".strategy-button").forEach((item) => item.classList.toggle("active", item.dataset.strategy === state.strategy));
+  render();
+}
+
 loadReferenceData()
-  .then(() => {
-    bind();
-    render();
-  })
+  .then(boot)
   .catch((error) => {
     console.error("Unable to load public BAH reference data", error);
-    bind();
-    render();
+    boot();
   });
 
 window.MilPayBudgetDebug = {
